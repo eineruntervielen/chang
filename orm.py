@@ -6,8 +6,8 @@ zu lesen
 wie gehen metclasses:   https://realpython.com/python-metaclasses/
 wie gehen descriptors:  https://docs.python.org/3/howto/descriptor.html
 """
-from re import A
 import sqlite3
+import abc
 
 
 class BaseManager:
@@ -84,8 +84,8 @@ class BaseModel(metaclass=MetaModel):
             setattr(self, field_name, value)
 
 
-class Field:
-    """Descriptor for basic Fields"""
+class Field(abc.ABC):
+    """Descriptor and Validator for basic Fields"""
 
     def __set_name__(self, owner, name):
         self.public_name = name
@@ -97,14 +97,35 @@ class Field:
         return value
 
     def __set__(self, obj, value):
-        # do useful stuff
+        self.validate(self.public_name, value)
         setattr(obj, self.private_name, value)
+
+    @abc.abstractmethod
+    def validate(self, public_name, value):
+        ...
+
+
+class NullField(Field):
+    def validate(self, public_name, value):
+        if not isinstance(value, None):
+            raise TypeError(f"Expected {public_name} = {value} to be None")
+
+class IntegerField(Field):
+    def validate(self, public_name, value):
+        if not isinstance(value, int):
+            raise TypeError(f"Expected {public_name} = {value} to be an interger")
+
+
+class TextField(Field):
+    def validate(self, public_name, value):
+        if not isinstance(value, str):
+            raise TypeError(f"Expected {public_name} = {value} to be a string")
 
 
 class Task(BaseModel):
     table_name = "task"
-    task_id = Field()
-    label = Field()
+    task_id = IntegerField()
+    label = TextField()
 
     def __init__(self, task_id, label) -> None:
         self.task_id = task_id
