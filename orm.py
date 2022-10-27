@@ -33,7 +33,7 @@ class BaseManager:
         ...
         # query = f"INSERT INTO {self.model_class.table_name} ({}) VALUES {}"
 
-    def read(self, *field_names):
+    def read_all(self, *field_names):
         if field_names:
             fields = ", ".join(field_names)
         else:
