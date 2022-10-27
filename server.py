@@ -1,3 +1,4 @@
+import re
 import pathlib
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -10,36 +11,75 @@ HOSTNAME = "localhost"
 PORT_DEFAULT = 3131
 BASE_PATH = pathlib.Path.absolute(pathlib.Path(__file__).parent)
 
+
+def navlink(route, link):
+    return f"<a href='{route}'>{link}</a>"
+
+
+def navbar():
+    anchors = {"/": "Home", "tasks": "All Tasks", "random_int": "Random Integer"}
+    return f"<nav>{' '.join([navlink(r, l) for r, l in anchors.items()])}</nav>"
+
+
+def _tasks(a):
+    return f"{a}"
+
+
+def render_layout(replacement: str):
+    replacement = navbar() + replacement
+    with open(file="index.html", mode="r", encoding="utf-8") as index_html:
+        index = str(index_html.read())
+        final_index = re.sub(pattern="{{%app_entry%}}", repl=replacement, string=index)
+        return final_index
+
+
 class ChangRequestHandler(BaseHTTPRequestHandler):
-    @staticmethod
-    def component_navbar() -> str:
-        with open(file=BASE_PATH / "navbar.html", mode="r", encoding="utf-8") as navbar_html:
-            navbar = str(navbar_html.read())
-        return navbar
-
+    # View-method
     def root(self):
+        # Begin decorator
         self.send_response(200)
         self.send_header("Content-type", "text/html")
         self.end_headers()
-        self.wfile.write(bytes(self.component_navbar() + f"<h1>Up and running", "utf-8"))
+        # End decorator
+        self.wfile.write(bytes(render_layout(replacement=""), "utf-8"))
 
+    # View-method
     def random_int(self):
+        # Begin decorator
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        # End decorator
         import random
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-        self.wfile.write(bytes(self.component_navbar() + f"<h1>data: {random.randint(0,10)}</h1>", "utf-8"))
 
-    def all_tasks(self):
-        a = Task.objects.read_all()
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
+        randint_to_render = random.randint(0, 10)
+
         self.wfile.write(
-            bytes(self.component_navbar()+
-                f"<h1>Task:{a}</h1>", "utf-8"
+            bytes(
+                render_layout(replacement=f"<h1>data: {randint_to_render}</h1>"),
+                "utf-8",
             )
         )
+
+    # View-method
+    def all_tasks(self):
+        # Begin decorator
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        # end decorator
+        a = Task.objects.read_all()
+        self.wfile.write(bytes(render_layout(replacement=_tasks(a)), "utf-8"))
+
+    # static-file-method
+    def send_css(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/css")
+        self.end_headers()
+        # end decorator
+        with open(file="main.css", mode="r", encoding="utf-8") as main_css:
+            main = main_css.read()
+            self.wfile.write(bytes(main, "utf-8"))
 
     def do_GET(self):
         match self.path:
@@ -49,6 +89,8 @@ class ChangRequestHandler(BaseHTTPRequestHandler):
                 self.all_tasks()
             case "/random_int":
                 self.random_int()
+            case "/main.css":
+                self.send_css()
             case _:
                 self.root()
 
