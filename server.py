@@ -34,12 +34,20 @@ def render_layout(replacement: str):
 
 
 class ChangRequestHandler(BaseHTTPRequestHandler):
+
+    def route(func):
+        def inner(self):
+            self.send_response(200)
+            self.send_header("Content-type", "text/html")
+            self.end_headers()
+            func()
+        return inner
     # View-method
     def root(self):
         # Begin decorator
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
+        # self.send_response(200)
+        # self.send_header("Content-type", "text/html")
+        # self.end_headers()
         # End decorator
         self.wfile.write(bytes(render_layout(replacement=""), "utf-8"))
 

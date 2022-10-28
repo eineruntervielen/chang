@@ -23,13 +23,17 @@ def insert():
 
 
 def serve():
-    webServer = HTTPServer((HOSTNAME, PORT_DEFAULT), ChangRequestHandler)
+    chang_server = HTTPServer((HOSTNAME, PORT_DEFAULT), ChangRequestHandler)
+    @chang_server.route
+    def bla():
+        print("blub")
+    bla()
     print("Server started http://%s:%s" % (HOSTNAME, PORT_DEFAULT))
     try:
-        webServer.serve_forever()
+        chang_server.serve_forever()
     except KeyboardInterrupt:
         pass
-    webServer.server_close()
+    chang_server.server_close()
     print("Server stopped.")
 
 
