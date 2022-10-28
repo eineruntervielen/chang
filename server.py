@@ -2,10 +2,8 @@ import re
 import pathlib
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from orm import Task, BaseManager
-
-DB_PATH = pathlib.Path.home() / ".chang/prod.sqlite"
-BaseManager.set_connection(settings=DB_PATH)
+from orm import SQLiteManager
+from model import Task
 
 HOSTNAME = "localhost"
 PORT_DEFAULT = 3131
@@ -28,26 +26,19 @@ def _tasks(a):
 def render_layout(replacement: str):
     replacement = navbar() + replacement
     with open(file="index.html", mode="r", encoding="utf-8") as index_html:
-        index = str(index_html.read())
+        index = index_html.read()
         final_index = re.sub(pattern="{{%app_entry%}}", repl=replacement, string=index)
         return final_index
 
 
 class ChangRequestHandler(BaseHTTPRequestHandler):
 
-    def route(func):
-        def inner(self):
-            self.send_response(200)
-            self.send_header("Content-type", "text/html")
-            self.end_headers()
-            func()
-        return inner
     # View-method
     def root(self):
         # Begin decorator
-        # self.send_response(200)
-        # self.send_header("Content-type", "text/html")
-        # self.end_headers()
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
         # End decorator
         self.wfile.write(bytes(render_layout(replacement=""), "utf-8"))
 
@@ -91,6 +82,8 @@ class ChangRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         match self.path:
+            case "":
+                self.root()
             case "/":
                 self.root()
             case "/tasks":
@@ -104,6 +97,8 @@ class ChangRequestHandler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    DB_PATH = pathlib.Path.home() / ".chang/prod.sqlite"
+    BaseManager.set_connection(settings=DB_PATH)
 
     webServer = HTTPServer((HOSTNAME, PORT_DEFAULT), ChangRequestHandler)
     print("Server started http://%s:%s" % (HOSTNAME, PORT_DEFAULT))

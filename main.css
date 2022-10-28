@@ -1,8 +1,19 @@
 * {
+    margin: 0;
+    padding: 0;
     font-family: monospace;
     color: rgb(50, 50, 50)
 }
 
 a {
     text-decoration: none;
+}
+
+nav {
+    background-color: rgba(225,225,225,0.9);
+}
+nav a {
+    font-size: 1.5rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
 }

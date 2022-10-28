@@ -10,12 +10,17 @@ import sqlite3
 import abc
 
 
-class BaseManager:
+class SQLiteManager:
     connection: sqlite3.Connection | None = None
+
+    def dict_factory(cursor, row):
+        col_names = [col[0] for col in cursor.description]
+        return {key: value for key, value in zip(col_names, row)}
 
     @classmethod
     def set_connection(cls, settings):
         cls.connection = sqlite3.connect(settings)
+        cls.connection.row_factory = cls.dict_factory
 
     @classmethod
     def _get_cursor(cls):
@@ -29,25 +34,22 @@ class BaseManager:
     def __init__(self, model_class: str) -> None:
         self.model_class = model_class
 
-    def create(self, rows: list):
-        ...
-        # query = f"INSERT INTO {self.model_class.table_name} ({}) VALUES {}"
-
-    def read_all(self, *field_names):
-        if field_names:
-            fields = ", ".join(field_names)
-        else:
-            fields = "*"
+    def select(self, field_names: None | list[str] = None):
+        fields = ", ".join(field_names) if field_names else "*"
         query = f"SELECT {fields} FROM {self.model_class.table_name}"
         cursor = self._get_cursor()
-        res = cursor.execute(query)
-        # get the column names aka attributes of instance
-        attributes_list = list(map(lambda x: x[0], res.description))
-        result = res.fetchall()
-        toreturn = []
-        for tup in result:
-            toreturn.append(self.model_class(*tup))
-        return toreturn
+        result = cursor.execute(query).fetchall()
+        return list(map(self.model_class, result))
+
+    def insert(self, row: dict):
+        fields = ", ".join(row.keys())
+        values = ", ".join(row.values())
+        print(fields)
+        print(values)
+        query = f"INSERT INTO {self.model_class.table_name} ({fields}) VALUES ({values})"
+        print(query)
+        cursor = self._get_cursor()
+        cursor.execute(query)
 
     def update(self, new_data: dict):
         ...
@@ -59,12 +61,12 @@ class BaseManager:
 class MetaModel(type):
     """The MetaModel is necessary because the objects
     property woulnd be passed to the actual Model.
-    Also it is responsible for giving ever actual Model a the BaseManager.
+    Also it is responsible for giving ever actual Model a the SQLiteManager.
     """
 
     def __new__(cls, name, bases, dct):
         x = super().__new__(cls, name, bases, dct)
-        x.manager_class = BaseManager
+        x.manager_class = SQLiteManager
         return x
 
     def _get_manager(self):
@@ -78,9 +80,9 @@ class MetaModel(type):
 class BaseModel(metaclass=MetaModel):
     table = ""
 
-    def __init__(self, **row_data) -> None:
+    def __init__(self, row) -> None:
         """Quick and Dirty if you dont want to have any fields or stuff"""
-        for field_name, value in row_data.items():
+        for field_name, value in row.items():
             setattr(self, field_name, value)
 
 
@@ -92,9 +94,7 @@ class Field(abc.ABC):
         self.private_name = "_" + name
 
     def __get__(self, obj, objtype=None):
-        value = getattr(obj, self.private_name)
-        # do useful stufpf
-        return value
+        return getattr(obj, self.private_name)
 
     def __set__(self, obj, value):
         self.validate(self.public_name, value)
@@ -110,6 +110,7 @@ class NullField(Field):
         if not isinstance(value, None):
             raise TypeError(f"Expected {public_name} = {value} to be None")
 
+
 class IntegerField(Field):
     def validate(self, public_name, value):
         if not isinstance(value, int):
@@ -120,19 +121,3 @@ class TextField(Field):
     def validate(self, public_name, value):
         if not isinstance(value, str):
             raise TypeError(f"Expected {public_name} = {value} to be a string")
-
-
-class Task(BaseModel):
-    table_name = "task"
-    task_id = IntegerField()
-    label = TextField()
-
-    def __init__(self, task_id, label) -> None:
-        self.task_id = task_id
-        self.label = label
-
-    def __repr__(self) -> str:
-        return f"Task(id={self.task_id}, label={self.label})"
-
-    def __str__(self) -> str:
-        return f"Task(id={self.task_id}, label={self.label})"

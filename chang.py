@@ -4,30 +4,31 @@ import pathlib
 
 from http.server import HTTPServer
 
-from orm import BaseManager, Task
+from orm import SQLiteManager
+from model import Task
 from server import PORT_DEFAULT, HOSTNAME, ChangRequestHandler
 
 DB_PATH = pathlib.Path.home() / ".chang/prod.sqlite"
-BaseManager.set_connection(settings=DB_PATH)
+SQLiteManager.set_connection(settings=DB_PATH)
 
 
 def read_all():
-    task_list = Task.objects.read_all()
+    task_list = Task.objects.select()
     for t in task_list:
         print(t)
 
 
 def insert():
+    row = {}
     print("Label: ", end=None)
-    input()
+    row["label"] = input()
+    print("Summary: ", end=None)
+    row["summary"] = input()
+    Task.objects.insert(row)
 
 
 def serve():
     chang_server = HTTPServer((HOSTNAME, PORT_DEFAULT), ChangRequestHandler)
-    @chang_server.route
-    def bla():
-        print("blub")
-    bla()
     print("Server started http://%s:%s" % (HOSTNAME, PORT_DEFAULT))
     try:
         chang_server.serve_forever()
