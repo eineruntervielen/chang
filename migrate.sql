@@ -1,6 +1,7 @@
 -- SQLite
+-- DROP TABLE task;
 CREATE TABLE IF NOT EXISTS task(
-    task_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER PRIMARY KEY,
     label TEXT,
     summary TEXT
 );

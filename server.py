@@ -2,7 +2,6 @@ import re
 import pathlib
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from orm import SQLiteManager
 from model import Task
 
 HOSTNAME = "localhost"
@@ -97,8 +96,10 @@ class ChangRequestHandler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    from orm import SQLiteManager
+
     DB_PATH = pathlib.Path.home() / ".chang/prod.sqlite"
-    BaseManager.set_connection(settings=DB_PATH)
+    SQLiteManager.set_connection(settings=DB_PATH)
 
     webServer = HTTPServer((HOSTNAME, PORT_DEFAULT), ChangRequestHandler)
     print("Server started http://%s:%s" % (HOSTNAME, PORT_DEFAULT))

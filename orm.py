@@ -1,11 +1,4 @@
-"""
-IDEA but in bad https://levelup.gitconnected.com/how-i-built-a-simple-orm-from-scratch-in-python-18b50108cfa3
-
-zu lesen
-                        https://speakerdeck.com/lig/your-own-orm-in-python-how-and-why?slide=10
-wie gehen metclasses:   https://realpython.com/python-metaclasses/
-wie gehen descriptors:  https://docs.python.org/3/howto/descriptor.html
-"""
+"""Object Relational Mapper"""
 import sqlite3
 import abc
 
@@ -43,19 +36,23 @@ class SQLiteManager:
 
     def insert(self, row: dict):
         fields = ", ".join(row.keys())
-        values = ", ".join(row.values())
-        print(fields)
-        print(values)
-        query = f"INSERT INTO {self.model_class.table_name} ({fields}) VALUES ({values})"
+        values = ", ".join([f'\'{v}\'' for v in row.values()])
+        query = f"INSERT INTO {self.model_class.table_name}({fields}) VALUES ({values})"
         print(query)
         cursor = self._get_cursor()
         cursor.execute(query)
+        self.connection.commit()
 
     def update(self, new_data: dict):
         ...
 
-    def delete(self):
-        ...
+    def delete(self, attribute, value):
+        query = (
+            f"DELETE FROM {self.model_class.table_name} WHERE {attribute} = {value};"
+        )
+        cursor = self._get_cursor()
+        cursor.execute(query)
+        self.connection.commit()
 
 
 class MetaModel(type):
