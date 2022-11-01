@@ -66,7 +66,7 @@ class ChangRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-type", "text/html")
         self.end_headers()
         # end decorator
-        a = Task.objects.read_all()
+        a = Task.objects.select()
         self.wfile.write(bytes(render_layout(replacement=_tasks(a)), "utf-8"))
 
     # static-file-method

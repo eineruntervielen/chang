@@ -8,15 +8,15 @@ from http.server import HTTPServer
 from orm import SQLiteManager
 from model import Task
 from nice import out_nice_table
-from server import PORT_DEFAULT, HOSTNAME, ChangRequestHandler
+from chang_handler import PORT_DEFAULT, HOSTNAME, ChangRequestHandler
 
-DB_PATH = pathlib.Path.home() / ".chang/prod.sqlite"
+DB_PATH = pathlib.Path.home() / ".chang/prod.db"
 SQLiteManager.set_connection(settings=DB_PATH)
 
 
 def read_all():
     task_list = Task.objects.select()
-    out_nice_table(["Id", "Label", "Summary"], task_list)
+    out_nice_table(["Id", "Title", "Summary", "Label", "State"], task_list)
 
 
 def delete():
@@ -27,10 +27,14 @@ def delete():
 
 def insert():
     row = {}
-    print("Label: ", end=None)
-    row["label"] = input()
+    print("Title: ", end=None)
+    row["title"] = input()
     print("Summary: ", end=None)
     row["summary"] = input()
+    print("Label: ", end=None)
+    row["label"] = input()
+    print("State: ", end=None)
+    row["state"] = input()
     Task.objects.insert(row)
 
 

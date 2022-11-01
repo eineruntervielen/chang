@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="main.css">
+</head>
+
+<body>
+    <!-- Outer flexbox that shows all lists dependeing on the state -->
+    <div>
+        {% for_each(state, states)%}
+        <!-- make a list for every state in states -->
+        <div>
+            <!-- Header Stuff, elements and so on -->
+            <div>
+                <h2>{{ state }}</h2>
+            </div>
+            <!-- The acutall list of tasks -->
+            <div>
+                {% for_each(task, tasks)%}
+                <!-- Show the card of the task, label, summary, date of creation, etc. -->
+                <div>
+
+                </div>
+                {% end_for %}
+            </div>
+        </div>
+        {% end_for %}
+    </div>
+</body>
+
+</html>
