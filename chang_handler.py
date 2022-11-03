@@ -19,7 +19,7 @@ def navbar():
 
 
 def _tasks(a):
-    return f"{a}"
+    return f"<h1>{a}</h1>"
 
 
 def render_layout(replacement: str):

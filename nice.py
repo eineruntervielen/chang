@@ -1,7 +1,10 @@
 """
 Reference: https://unicode-table.com/en/blocks/box-drawing/
 https://www.geeksforgeeks.org/print-colors-python-terminal/
+
+Wrapping lines and shortening if table to small  https://docs.python.org/3/library/textwrap.html
 """
+import textwrap
 from os import get_terminal_size
 from enum import Enum
 
@@ -86,13 +89,16 @@ def out_nice_table(column_headers: list[str], rows: list):
         + box.vertical_and_left.value
     )
     for row in rows:
+        summary = row.summary
+        if len(summary) > 60:
+            summary = textwrap.shorten(row.summary, width=60, placeholder="...")
         print(
             box.vertical.value
             + f"{row.task_id: ^6}"
             + box.vertical.value
             + f"{row.title: ^20}"
             + box.vertical.value
-            + f"{row.summary: <60}"
+            + f"{summary: <60}"
             + box.vertical.value
             + f"{row.label: ^20}"
             + box.vertical.value
