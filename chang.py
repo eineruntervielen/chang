@@ -1,43 +1,194 @@
 #!/usr/bin/env/ python
-import pathlib
+import re
 import argparse
+import pathlib
+import sqlite3
 
-from http.server import HTTPServer
+from contextlib import closing
+from difflib import get_close_matches
+from typing import NewType, NamedTuple
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from orm import SQLiteManager
-from model import Task
-from nice import print_table
-from chang_handler import PORT_DEFAULT, HOSTNAME, ChangRequestHandler
+from ui_components import *
 
+INDEX_STRING = """<!DOCTYPE html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="main.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            font-family: monospace;
+            color: rgb(50, 50, 50)
+        }
+
+        main {
+            min-height: 100vh;
+            background: cadetblue;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .task_list {
+            padding: 0.25rem;
+            display: flex;
+            flex-direction: column;
+            border: 2px solid black;
+        }
+
+        .task_item {
+            margin: 0.25rem;
+            padding: 0.25rem;
+            background: gainsboro;
+        }
+
+        .task_item:hover {
+            background: cyan;
+            cursor: pointer;
+
+        }
+    </style>
+</head>
+<body>
+{{%app_entry%}}
+</body>
+<script>
+    drag = () => {
+        console.log("dragging")
+    }
+    dragStart = () => {
+        console.log("Started dragging")
+    }
+    dragEnd = () => {
+        console.log("End dragging")
+    }
+</script>
+</html>"""
+
+BASE_PATH = pathlib.Path.absolute(pathlib.Path(__file__).parent)
 DB_PATH = pathlib.Path.home() / ".chang/prod.db"
-SQLiteManager.set_connection(settings=DB_PATH)
+FIELDS = ("title", "summary", "label", "state")
+HOSTNAME = "localhost"
+MODES = ("select", "insert", "delete", "serve")
+PORT_DEFAULT = 3131
+QUERY_NEW_TABLE = (
+    "CREATE TABLE IF NOT EXISTS task(id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, summary TEXT, label TEXT, state TEXT);")
+Query = NewType('Query', str)
+STATES = ("open", "started", "closed")
+UserInput = NewType('UserInput', dict[str, str])
 
 
-def read_all():
-    task_list = Task.objects.mode_select()
-    print_table(["Id", "Title", "Summary", "Label", "State"], task_list)
+class Task(NamedTuple):
+    id: int | None
+    title: str
+    summary: str
+    label: str
+    state: str
 
 
-def delete():
-    print("Which Id?", end=None)
-    task_id = input()
-    Task.objects.mode_delete(attribute="task_id", value=task_id)
+def render_layout(replacement: str):
+    return re.sub(pattern="{{%app_entry%}}", repl=replacement, string=INDEX_STRING)
 
 
-def insert():
-    row = {}
-    print("Title: ", end=None)
-    row["title"] = input()
-    print("Summary: ", end=None)
-    row["summary"] = input()
-    print("Label: ", end=None)
-    row["label"] = input()
-    print("State: ", end=None)
-    row["state"] = input()
-    Task.objects.mode_insert(row)
+class ChangRequestHandler(BaseHTTPRequestHandler):
+
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        all_tasks = mode_select(table='task', columns='*')
+        print(all_tasks)
+        self.wfile.write(bytes(render_layout(replacement=app(all_tasks)), "utf-8"))
 
 
-def serve():
+def get_user_input() -> UserInput:
+    return UserInput(dict(zip(
+        FIELDS,
+        list(map(lambda x: input(), map(lambda c: print(str(c).capitalize()), FIELDS))))
+    ))
+
+
+def build_query_select(table: str, columns: str | list[str]) -> Query:
+    """Merges chosen columns and the table name to create sql query for
+    select statement.
+
+    >>> build_query_select(table="task", columns="*")
+    'SELECT * FROM task;'
+    >>> build_query_select(table="task", columns=["id", "name"])
+    'SELECT id,name FROM task;'
+    >>> build_query_select(table="task", columns="")
+    Traceback (most recent call last):
+    ...
+    ValueError: Columns can not be empty
+
+    :param table: Name of the table to select from
+    :param columns: Names of the columns to select from
+    :return: SQL string SELECT query
+    """
+    if not columns:
+        raise ValueError(f"Columns can not be empty")
+    return Query(f"SELECT {','.join(columns)} FROM {table};")
+
+
+def build_query_delete(table: str, attribute: str, value: str) -> Query:
+    """Merges chosen columns and the table name to create sql query for
+    delete statement.
+
+    >>> build_query_delete(table="task", attribute="task_id", value="1")
+    'DELETE FROM task WHERE task_id = 1;'
+
+    :param table: Name of the table to delete from
+    :param attribute:
+    :param value:
+    :return: SQL string DELETE query
+    """
+    return Query(f"DELETE FROM {table} WHERE {attribute} = {value};")
+
+
+def build_query_insert(table: str, row: dict) -> Query:
+    """Merges user input data to create input statement.
+
+    >>> row_test = {'Id': 1, 'Name': 'Hello'}
+    >>> build_query_insert(table="task", row=row_test)
+    "INSERT INTO task(Id, Name) VALUES ('1', 'Hello');"
+
+    :param table: Name of the table to delete from
+    :param row:
+    :return: SQL string INSERT query
+    """
+    fields = ", ".join(row.keys())
+    values = ", ".join([f'\'{v}\'' for v in row.values()])
+    return Query(f"INSERT INTO {table}({fields}) VALUES ({values});")
+
+
+def _execute_query(query):
+    with closing(sqlite3.connect(DB_PATH)) as con:
+        con.cursor().execute(query)
+        con.commit()
+
+
+def mode_select(table: str, columns: str) -> list[Task]:
+    query = build_query_select(table=table, columns=columns)
+    with closing(sqlite3.connect(DB_PATH)) as con:
+        tasks = list(map(lambda t: Task(*t), con.cursor().execute(query).fetchall()))
+    return tasks
+
+
+def mode_delete():
+    query = build_query_delete(table="task", attribute="task_id", value="13")
+    _execute_query(query)
+
+
+def mode_insert(user_input: UserInput):
+    query = build_query_insert(table="task", row=user_input)
+    _execute_query(query)
+
+
+def mode_serve():
     chang_server = HTTPServer((HOSTNAME, PORT_DEFAULT), ChangRequestHandler)
     print(f"Server started http://{HOSTNAME}:{PORT_DEFAULT}")
     try:
@@ -48,26 +199,63 @@ def serve():
     print("Server stopped.")
 
 
-def execute_mode(mode: str) -> None:
-    match mode:
-        case "read":
-            read_all()
+def mode_setup():
+    if not pathlib.Path(DB_PATH).exists():
+        print("Would you like to setup a database? [Y/n]")
+        answer = input()
+        if answer == 'Y':
+            try:
+                _execute_query(QUERY_NEW_TABLE)
+                print("DB and table created")
+            except:
+                SystemError("Table could not be created")
+    else:
+        print(f"The database already exists here: {DB_PATH}")
+
+
+def execute_mode(chosen_mode: str) -> None:
+    match chosen_mode:
+        case "select":
+            mode_select(table="task", columns="*", )
         case "insert":
-            insert()
+            user_input: UserInput = get_user_input()
+            mode_insert(user_input)
         case "delete":
-            delete()
+            mode_delete()
         case "serve":
-            serve()
-        case _:
-            raise IOError("No mode presented")
+            mode_serve()
+        case "setup":
+            mode_setup()
+
+
+def correct_mode(mode_chosen: str) -> str:
+    """Checks if the selected mode from the user is valid. Raises ValueError
+    otherwise.
+
+    :param mode_chosen: Selected mode
+    """
+    if not mode_chosen:
+        raise IOError("No mode presented")
+    if not isinstance(mode_chosen, str):
+        raise ValueError("Mode must be string")
+    interpreted_mode = get_close_matches(word=mode_chosen, possibilities=MODES, n=1)[0]
+    if interpreted_mode not in MODES:
+        raise ValueError('Mode not present')
+    return mode_chosen
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("mode", choices=["read", "insert", "delete", "serve"])
+    parser.add_argument("mode", choices=MODES)
     args = parser.parse_args()
     execute_mode(args.mode)
 
 
 if __name__ == "__main__":
-    main()
+    import doctest
+
+    doctest.testmod()
+
+    mode = "serve"
+    new_mode = correct_mode(mode)
+    execute_mode(new_mode)
