@@ -1,13 +1,12 @@
 #!/usr/bin/env/ python
-import argparse
-from ast import Delete
 import pathlib
+import argparse
 
 from http.server import HTTPServer
 
 from orm import SQLiteManager
 from model import Task
-from nice import out_nice_table
+from nice import print_table
 from chang_handler import PORT_DEFAULT, HOSTNAME, ChangRequestHandler
 
 DB_PATH = pathlib.Path.home() / ".chang/prod.db"
@@ -15,14 +14,14 @@ SQLiteManager.set_connection(settings=DB_PATH)
 
 
 def read_all():
-    task_list = Task.objects.select()
-    out_nice_table(["Id", "Title", "Summary", "Label", "State"], task_list)
+    task_list = Task.objects.mode_select()
+    print_table(["Id", "Title", "Summary", "Label", "State"], task_list)
 
 
 def delete():
     print("Which Id?", end=None)
     task_id = input()
-    Task.objects.delete(attribute="task_id", value=task_id)
+    Task.objects.mode_delete(attribute="task_id", value=task_id)
 
 
 def insert():
@@ -35,12 +34,12 @@ def insert():
     row["label"] = input()
     print("State: ", end=None)
     row["state"] = input()
-    Task.objects.insert(row)
+    Task.objects.mode_insert(row)
 
 
 def serve():
     chang_server = HTTPServer((HOSTNAME, PORT_DEFAULT), ChangRequestHandler)
-    print("Server started http://%s:%s" % (HOSTNAME, PORT_DEFAULT))
+    print(f"Server started http://{HOSTNAME}:{PORT_DEFAULT}")
     try:
         chang_server.serve_forever()
     except KeyboardInterrupt:

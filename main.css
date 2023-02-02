@@ -5,15 +5,28 @@
     color: rgb(50, 50, 50)
 }
 
-a {
-    text-decoration: none;
+main {
+    min-height: 100vh;
+    background: cadetblue;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
-nav {
-    background-color: rgba(225,225,225,0.9);
+.task_list {
+    padding: 0.25rem;
+    display: flex;
+    flex-direction: column;
+    border: 2px solid black;
 }
-nav a {
-    font-size: 1.5rem;
-    padding-left: 1rem;
-    padding-right: 1rem;
+.task_item {
+    margin: 0.25rem;
+    padding: 0.25rem;
+    background: gainsboro;
+}
+
+.task_item:hover {
+    background: cyan;
+    cursor: pointer;
+
 }

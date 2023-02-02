@@ -5,8 +5,12 @@ https://www.geeksforgeeks.org/print-colors-python-terminal/
 Wrapping lines and shortening if table to small  https://docs.python.org/3/library/textwrap.html
 """
 import textwrap
+import logging
 from os import get_terminal_size
 from enum import Enum
+from typing import Any
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 class BoxDrawingsLight(Enum):
@@ -23,24 +27,37 @@ class BoxDrawingsLight(Enum):
     up_and_horizontal = "┴"
 
 
-class Color(Enum):
+class ColorForeground(Enum):
     yellow = "\033[93m"
     end = "\033[00m"
 
 
-def printc(text: str, fg_color: str):
-    if not isinstance(fg_color, Color):
-        raise ValueError(f"Expected {fg_color} to be one of {Color.__members__}")
-    print(f"{fg_color.value}{text}{Color.end.value}")
+def printc(text: str, fg: str, bg: str):
+    print(paint(text, fg, bg))
 
 
-def printcr(text: str, fg_color: str):
-    if not isinstance(fg_color, Color):
-        raise ValueError(f"Expected {fg_color} to be one of {Color.__members__}")
-    return f"{fg_color.value}{text}{Color.end.value}"
+def paint(text: str, fg: str, bg: str):
+    return f"{fg.value}{text}{Color.end.value}"
 
 
-def out_nice_table(column_headers: list[str], rows: list):
+def table(rows: list[dict[str, Any]], column_headers: list[str] = None) -> None:
+    # max_width = get_terminal_size().columns
+    cols_to_row_entries = {col: []
+                           for col in rows[0].keys()}
+    for row in rows:
+        for col, entry in row.items():
+            cols_to_row_entries.get(col).append(entry)
+    print(cols_to_row_entries)
+    cols_to_max_width = {
+        col: max([len(entry) for entry in cols_to_row_entries.get(col)]) for col in cols_to_row_entries
+    }
+    print(cols_to_max_width)
+
+
+def print_table(column_headers: list[str], rows: list):
+    """Prints a formatted table to stdout using unicode characters from the range...
+    """
+    max_window_width = get_terminal_size().columns
     min_col_width = {
         col: len(col) for col in column_headers
     }
@@ -118,3 +135,12 @@ def out_nice_table(column_headers: list[str], rows: list):
         + box.horizontal.value * 20
         + box.up_and_left.value
     )
+
+
+if __name__ == '__main__':
+    table(rows=[
+        {'Id': 'fklajsdf slkaj sdöfjasd', 'Title': "askdlfjaslkdfjsda"},
+        {'Id': 'slkaj sdöfjasd', 'Title': "askdlfjaslkdfjsda"},
+        {'Id': 'fklajsdf sdöfjasd', 'Title': "askdlslkdfjsda sdk j"},
+        {'Id': 'slkaj ', 'Title': "askdlfjaslsda k jdskjsdfa "},
+    ])

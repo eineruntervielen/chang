@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -7,6 +6,17 @@
     <link rel="stylesheet" href="main.css">
 </head>
 <body>
-    {{%app_entry%}}
+{{%app_entry%}}
 </body>
+<script>
+    drag = () => {
+        console.log("dragging")
+    }
+    dragStart = () => {
+        console.log("Started dragging")
+    }
+    dragEnd = () => {
+        console.log("End dragging")
+    }
+</script>
 </html>

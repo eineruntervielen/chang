@@ -6,6 +6,10 @@ import abc
 class SQLiteManager:
     connection: sqlite3.Connection | None = None
 
+    def __init__(self, model_class: str) -> None:
+        self.model_class = model_class
+
+    @staticmethod
     def dict_factory(cursor, row):
         col_names = [col[0] for col in cursor.description]
         return {key: value for key, value in zip(col_names, row)}
@@ -24,9 +28,6 @@ class SQLiteManager:
         cursor = cls.connection._get_cursor()
         cursor.execute(query, params)
 
-    def __init__(self, model_class: str) -> None:
-        self.model_class = model_class
-
     def select(self, field_names: None | list[str] = None):
         fields = ", ".join(field_names) if field_names else "*"
         query = f"SELECT {fields} FROM {self.model_class.table_name}"
@@ -38,7 +39,6 @@ class SQLiteManager:
         fields = ", ".join(row.keys())
         values = ", ".join([f'\'{v}\'' for v in row.values()])
         query = f"INSERT INTO {self.model_class.table_name}({fields}) VALUES ({values})"
-        print(query)
         cursor = self._get_cursor()
         cursor.execute(query)
         self.connection.commit()
@@ -58,7 +58,7 @@ class SQLiteManager:
 class MetaModel(type):
     """The MetaModel is necessary because the objects
     property woulnd be passed to the actual Model.
-    Also it is responsible for giving ever actual Model a the SQLiteManager.
+    Also, it is responsible for giving ever actual Model a the SQLiteManager.
     """
 
     def __new__(cls, name, bases, dct):
@@ -102,19 +102,14 @@ class Field(abc.ABC):
         ...
 
 
-class NullField(Field):
-    def validate(self, public_name, value):
-        if not isinstance(value, None):
-            raise TypeError(f"Expected {public_name} = {value} to be None")
-
-
 class IntegerField(Field):
     def validate(self, public_name, value):
         if not isinstance(value, int):
-            raise TypeError(f"Expected {public_name} = {value} to be an interger")
+            raise TypeError(f"Expected {public_name} = {value} to be an integer")
 
 
 class TextField(Field):
     def validate(self, public_name, value):
         if not isinstance(value, str):
             raise TypeError(f"Expected {public_name} = {value} to be a string")
+
