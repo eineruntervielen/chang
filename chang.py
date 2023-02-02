@@ -4,13 +4,21 @@ import argparse
 import pathlib
 import sqlite3
 
-from contextlib import closing
 from difflib import get_close_matches
+from functools import partial
 from typing import NewType, NamedTuple
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer, SimpleHTTPRequestHandler
 
 from ui_components import *
 
+DB_PATH = pathlib.Path.home() / ".chang/prod.db"
+HOSTNAME = "localhost"
+MODES = ("select", "insert", "delete", "serve")
+PORT_DEFAULT = 3131
+QUERY_NEW_TABLE = (
+    "CREATE TABLE IF NOT EXISTS task(id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, summary TEXT, label TEXT, state TEXT);")
+Query = NewType('Query', str)
+STATES = ("open", "started", "closed")
 INDEX_STRING = """<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
@@ -69,21 +77,16 @@ INDEX_STRING = """<!DOCTYPE html>
 </script>
 </html>"""
 
-BASE_PATH = pathlib.Path.absolute(pathlib.Path(__file__).parent)
-DB_PATH = pathlib.Path.home() / ".chang/prod.db"
-FIELDS = ("title", "summary", "label", "state")
-HOSTNAME = "localhost"
-MODES = ("select", "insert", "delete", "serve")
-PORT_DEFAULT = 3131
-QUERY_NEW_TABLE = (
-    "CREATE TABLE IF NOT EXISTS task(id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, summary TEXT, label TEXT, state TEXT);")
-Query = NewType('Query', str)
-STATES = ("open", "started", "closed")
-UserInput = NewType('UserInput', dict[str, str])
+
+class UserInput(NamedTuple):
+    title: str
+    summary: str
+    label: str
+    state: str
 
 
 class Task(NamedTuple):
-    id: int | None
+    id: int
     title: str
     summary: str
     label: str
@@ -94,22 +97,15 @@ def render_layout(replacement: str):
     return re.sub(pattern="{{%app_entry%}}", repl=replacement, string=INDEX_STRING)
 
 
-class ChangRequestHandler(BaseHTTPRequestHandler):
+class ChangRequestHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         self.send_response(200)
         self.send_header("Content-type", "text/html")
         self.end_headers()
-        all_tasks = mode_select(table='task', columns='*')
+        all_tasks = query_select_all()
         print(all_tasks)
         self.wfile.write(bytes(render_layout(replacement=app(all_tasks)), "utf-8"))
-
-
-def get_user_input() -> UserInput:
-    return UserInput(dict(zip(
-        FIELDS,
-        list(map(lambda x: input(), map(lambda c: print(str(c).capitalize()), FIELDS))))
-    ))
 
 
 def build_query_select(table: str, columns: str | list[str]) -> Query:
@@ -138,8 +134,8 @@ def build_query_delete(table: str, attribute: str, value: str) -> Query:
     """Merges chosen columns and the table name to create sql query for
     delete statement.
 
-    >>> build_query_delete(table="task", attribute="task_id", value="1")
-    'DELETE FROM task WHERE task_id = 1;'
+    >>> build_query_delete(table="task", attribute="id", value="1")
+    'DELETE FROM task WHERE id = 1;'
 
     :param table: Name of the table to delete from
     :param attribute:
@@ -165,27 +161,42 @@ def build_query_insert(table: str, row: dict) -> Query:
     return Query(f"INSERT INTO {table}({fields}) VALUES ({values});")
 
 
-def _execute_query(query):
-    with closing(sqlite3.connect(DB_PATH)) as con:
-        con.cursor().execute(query)
-        con.commit()
+query_select_all = partial(build_query_select, table="task", columns="*")
+query_delete_by_id = partial(build_query_delete, table="task", attribute="id")
+query_delete_by_state = partial(build_query_delete, table="task", attribute="state")
 
 
-def mode_select(table: str, columns: str) -> list[Task]:
-    query = build_query_select(table=table, columns=columns)
-    with closing(sqlite3.connect(DB_PATH)) as con:
-        tasks = list(map(lambda t: Task(*t), con.cursor().execute(query).fetchall()))
-    return tasks
+def get_user_input() -> UserInput:
+    fields = UserInput._fields
+    d = dict(zip(fields, list(map(lambda x: input(), map(lambda c: print(str(c).capitalize()), fields)))))
+    return UserInput(**d)
 
 
-def mode_delete():
-    query = build_query_delete(table="task", attribute="task_id", value="13")
-    _execute_query(query)
+def get_user_input_delete() -> str:
+    print("Which Id?")
+    user_input = input()
+    return user_input
 
 
-def mode_insert(user_input: UserInput):
-    query = build_query_insert(table="task", row=user_input)
-    _execute_query(query)
+def execute_query(query):
+    with sqlite3.connect(DB_PATH) as con:
+        return con.execute(query).fetchall()
+
+
+def mode_select() -> list[Task]:
+    query = query_select_all()
+    result = execute_query(query)
+    return list(map(lambda r: Task(*r), result))
+
+
+def mode_delete(user_input) -> None:
+    query = query_delete_by_id(value=user_input)
+    execute_query(query)
+
+
+def mode_insert(user_input: UserInput) -> None:
+    query = build_query_insert(table="task", row=user_input._asdict())
+    execute_query(query)
 
 
 def mode_serve():
@@ -205,7 +216,7 @@ def mode_setup():
         answer = input()
         if answer == 'Y':
             try:
-                _execute_query(QUERY_NEW_TABLE)
+                execute_query(QUERY_NEW_TABLE)
                 print("DB and table created")
             except:
                 SystemError("Table could not be created")
@@ -216,12 +227,14 @@ def mode_setup():
 def execute_mode(chosen_mode: str) -> None:
     match chosen_mode:
         case "select":
-            mode_select(table="task", columns="*", )
+            tasks = mode_select()
+            list(map(lambda x: print(x), tasks))
         case "insert":
-            user_input: UserInput = get_user_input()
+            user_input = get_user_input()
             mode_insert(user_input)
         case "delete":
-            mode_delete()
+            user_input = get_user_input_delete()
+            mode_delete(user_input)
         case "serve":
             mode_serve()
         case "setup":
@@ -238,24 +251,20 @@ def correct_mode(mode_chosen: str) -> str:
         raise IOError("No mode presented")
     if not isinstance(mode_chosen, str):
         raise ValueError("Mode must be string")
-    interpreted_mode = get_close_matches(word=mode_chosen, possibilities=MODES, n=1)[0]
-    if interpreted_mode not in MODES:
-        raise ValueError('Mode not present')
-    return mode_chosen
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("mode", choices=MODES)
-    args = parser.parse_args()
-    execute_mode(args.mode)
+    possible_matches = get_close_matches(word=mode_chosen, possibilities=MODES, n=1)
+    if possible_matches:
+        interpreted_mode = str(possible_matches[0])
+        return interpreted_mode
+    else:
+        raise ValueError("No mode present because you wrote crap")
 
 
 if __name__ == "__main__":
     import doctest
 
     doctest.testmod()
-
-    mode = "serve"
-    new_mode = correct_mode(mode)
-    execute_mode(new_mode)
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument("mode", choices=MODES)
+    # args = parser.parse_args()
+    # execute_mode(args.mode)
+    execute_mode("select")
